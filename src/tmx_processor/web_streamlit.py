@@ -67,6 +67,11 @@ with tab_upload:
         c3.metric("Инструмент", (h.creation_tool or "N/A")[:20])
         c4.metric("Тип сегменти", h.seg_type or "N/A")
 
+        avail_langs = sorted(list({u.source_lang for u in units if u.source_lang} | {u.target_lang for u in units if u.target_lang}))
+        avail_pairs = sorted(list({f"{u.source_lang}-{u.target_lang}" for u in units if u.source_lang and u.target_lang}))
+        st.write(f"**Открити езици ({len(avail_langs)}):** {', '.join(avail_langs)}")
+        st.write(f"**Налични езикови двойки ({len(avail_pairs)}):** {', '.join(avail_pairs)}")
+
         with st.expander("💡 Първите 10 единици"):
             rows = []
             for i, u in enumerate(units[:10]):
@@ -95,6 +100,9 @@ with tab_clean:
             min_w = mw1.number_input("Мин. думи", 0, 10000, 0)
             max_w = mw2.number_input("Макс. думи", 0, 100000, 0)
             ratio = st.slider("Макс. съотношение по дължина", 1.1, 10.0, 3.0, 0.1)
+            avail_pairs = sorted(list({f"{unit.source_lang}-{unit.target_lang}" for unit in u if unit.source_lang and unit.target_lang}))
+            selected_pairs = st.multiselect("Филтрирай по конкретни езикови двойки (остави празно за всички)", options=avail_pairs, default=[])
+
             st.write("Опции:")
             cc1, cc2, cc3, cc4 = st.columns(4)
             rem_html = cc1.checkbox("Премахни HTML", True)
@@ -113,6 +121,7 @@ with tab_clean:
                 remove_emails=rem_emails,
                 lang_detect=lang_detect,
                 preserve_placeholders=preserve_ph,
+                language_pairs=selected_pairs if selected_pairs else None,
             )
             cleaner = DataCleaner(cfg)
             before = len(u)

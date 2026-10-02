@@ -383,6 +383,26 @@ class TMXParser:
             if reader is not None:
                 reader.close()
 
+    def get_available_languages(self) -> List[str]:
+        """Discover all unique language codes present in the TMX file."""
+        langs = set()
+        if self.header and self.header.source_lang:
+            langs.add(self.header.source_lang)
+        for tu in self.iter_units(stream=True):
+            if tu.source_lang:
+                langs.add(tu.source_lang)
+            if tu.target_lang:
+                langs.add(tu.target_lang)
+        return sorted(langs)
+
+    def get_language_pairs(self, expand_multilingual: bool = False) -> List[Tuple[str, str]]:
+        """Discover all unique language pairs (source_lang, target_lang) in the TMX file."""
+        pairs = set()
+        for tu in self.iter_units(stream=True, expand_multilingual=expand_multilingual):
+            if tu.source_lang and tu.target_lang:
+                pairs.add((tu.source_lang, tu.target_lang))
+        return sorted(pairs)
+
     def parse_all(self, expand_multilingual: bool = False) -> List[TranslationUnit]:
         return list(self.iter_units(stream=True, expand_multilingual=expand_multilingual))
 

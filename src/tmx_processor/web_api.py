@@ -523,6 +523,8 @@ async def api_upload(file: UploadFile = File(...)):
         "properties": header.properties,
     }
     key = _store_units(units, session_header)
+    discovered_langs = sorted(list({u.source_lang for u in units if u.source_lang} | {u.target_lang for u in units if u.target_lang}))
+    discovered_pairs = sorted(list({f"{u.source_lang}-{u.target_lang}" for u in units if u.source_lang and u.target_lang}))
     preview = [
         {
             "id": u.tu_id,
@@ -537,6 +539,8 @@ async def api_upload(file: UploadFile = File(...)):
         "key": key,
         "total_units": len(units),
         "header": session_header,
+        "available_languages": discovered_langs,
+        "language_pairs": discovered_pairs,
         "preview": preview,
     })
 
@@ -554,7 +558,9 @@ def api_clean(
     remove_emails: bool = Form(False),
     lang_detect: bool = Form(False),
     preserve_placeholders: bool = Form(False),
+    language_pairs: Optional[str] = Form(None), # Comma-separated pairs e.g. "EN-BG,BG-EN"
 ):
+    lang_pairs_list = [p.strip() for p in language_pairs.split(",")] if language_pairs else None
     cfg = CleanConfig(
         min_length=min_length,
         max_length=max_length,
@@ -566,6 +572,7 @@ def api_clean(
         remove_emails=remove_emails,
         lang_detect=lang_detect,
         preserve_placeholders=preserve_placeholders,
+        language_pairs=lang_pairs_list,
     )
     cleaner = DataCleaner(cfg)
     with _SESSION_LOCK:
