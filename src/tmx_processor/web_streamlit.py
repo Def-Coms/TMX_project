@@ -196,11 +196,24 @@ with tab_validate:
             mm1.metric("Общо знаци (изход)", f"{s.total_source_chars:,}")
             mm2.metric("Общо знаци (превод)", f"{s.total_target_chars:,}")
 
+            readiness = s.readiness_report()
+            st.markdown(f"**Готовност за LLM Fine-Tuning:** `{readiness['dataset_status']}`")
+            tok_est = readiness["token_estimates"]
+            st.write(f"Очаквани токени (Llama-3): `{tok_est['llama3_estimated_tokens']:,}` | (Qwen): `{tok_est['qwen_estimated_tokens']:,}`")
+
             if s.language_pairs:
                 st.write("Езикови двойки:")
                 st.dataframe(
                     [{"Двойка": f"{a} → {b}", "Брой": c}
                      for (a, b), c in s.language_pairs.most_common()],
+                    use_container_width=True, hide_index=True
+                )
+
+            terms = analyzer.extract_terminology(u, min_freq=2, max_terms=20)
+            if terms:
+                st.markdown("#### 📖 Открита терминология & речник")
+                st.dataframe(
+                    [{"Изходен термин": t["source_term"], "Преводен термин": t["target_term"], "Честота": t["frequency"]} for t in terms],
                     use_container_width=True, hide_index=True
                 )
 

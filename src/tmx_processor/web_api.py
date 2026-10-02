@@ -621,9 +621,13 @@ def api_validate(key: str):
 
 @app.get("/api/stats/{key}")
 def api_stats(key: str):
+    units = _get_session_units(key, "Няма данни.")
     analyzer = DataAnalyzer()
-    stats = analyzer.analyze(_get_session_units(key, "Няма данни."))
-    return JSONResponse(stats.to_dict())
+    stats = analyzer.analyze(units)
+    terms = analyzer.extract_terminology(units, min_freq=2, max_terms=30)
+    res = stats.to_dict()
+    res["terminology"] = terms
+    return JSONResponse(res)
 
 
 @app.get("/api/preview/{key}")

@@ -28,6 +28,7 @@ class CleanConfig:
     lang_detect: bool = False
     language_pairs: Optional[List[str]] = None  # e.g., ["EN-BG", "BG-EN"]
     preserve_placeholders: bool = False  # Keep {0}, {1} etc. placeholders
+    remove_untranslated: bool = True  # Remove segments where text is identically copied without translation
 
 
 HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -185,6 +186,12 @@ class DataCleaner:
 
         if not self._check_language_pair(unit.source_lang, unit.target_lang):
             return None
+
+        # Check untranslated identical copy filter (when source & target are different language codes)
+        if self.config.remove_untranslated and unit.source_lang and unit.target_lang:
+            if unit.source_lang.lower()[:2] != unit.target_lang.lower()[:2]:
+                if unit.source_text.strip().lower() == unit.target_text.strip().lower():
+                    return None
 
         cleaned_src = self._clean_text(unit.source_text)
         cleaned_tgt = self._clean_text(unit.target_text)
