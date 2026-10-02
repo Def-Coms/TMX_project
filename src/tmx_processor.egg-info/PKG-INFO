@@ -1,0 +1,458 @@
+Metadata-Version: 2.4
+Name: tmx-processor
+Version: 0.1.0
+Summary: Платформа за обработка на TMX езикови файлове за обучение на AI агенти
+Author: TMX Processor Team
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: lxml>=4.9.0
+Requires-Dist: regex>=2023.0.0
+Requires-Dist: langdetect>=1.0.9
+Requires-Dist: jsonlines>=4.0.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: pyarrow>=12.0.0
+Requires-Dist: typer>=0.9.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: tqdm>=4.65.0
+Requires-Dist: datasketch>=1.5.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn>=0.27.0
+Requires-Dist: python-multipart>=0.0.9
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: httpx2>=2.13.1; extra == "dev"
+Provides-Extra: streamlit
+Requires-Dist: streamlit>=1.30.0; extra == "streamlit"
+Provides-Extra: tokenizer
+Requires-Dist: tiktoken>=0.5.0; extra == "tokenizer"
+Provides-Extra: all
+Requires-Dist: streamlit>=1.30.0; extra == "all"
+Requires-Dist: tiktoken>=0.5.0; extra == "all"
+Dynamic: license-file
+
+- Fallback-и за JSONL, XML и fuzzy без datasketch; без `typer`/`rich` CLI извежда инсталационно съобщение и приключва.
+# TMX Processor
+
+> Платформа за обработка на TMX (Translation Memory eXchange) езикови файлове, за подготвяне на данни за обучение на AI агенти — машинен превод, LLM instruction tuning и чат модели.
+
+---
+
+## Съдържание
+
+- [Функционалности](#функционалности)
+- [Инсталация](#инсталация)
+- [Интерфейси](#интерфейси)
+  - [CLI (Command Line Interface)](#1-cli-command-line-interface)
+  - [Уеб UI (FastAPI + HTML SPA)](#2-уеб-ui-fastapi--html-spa)
+  - [Streamlit UI](#3-streamlit-ui)
+- [Python API](#python-api)
+- [Формати за експорт](#формати-за-експорт-10)
+- [Архитектура](#архитектура)
+- [Примерни файлове](#примерни-файлове)
+- [Отстраняване на проблеми](#отстраняване-на-проблеми)
+
+---
+
+## Функционалности
+
+| Категория | Модул | Какво прави |
+|-----------|-------|-------------|
+| 📥 Парсене | `TMXParser` | Namespace-aware lxml `iterparse`/streaming; recover warnings за XML syntax issues; stdlib fallback; multilingual expansion |
+  ├── big_test.tmx            # 549 MB UTF-16 large-file integration fixture
+| 🧹 Почистване | `DataCleaner` | Unicode нормализация, HTML/URL/email премахване, филтри по дълга, ratio, думи |
+| 🧹 Почистване | `DataCleaner` | Unicode/HTML/URL/email нормализация, филтри, positional printf и други placeholders с remove/preserve опции |
+| 🎯 Валидация | `DataValidator` | 8 проверки за текст, езици, числа, placeholder-и, шум и съотношение на дължини |
+| 🗑️ Дедупликация | `DataDeduper` | Exact + Fuzzy MinHash LSH (datasketch) |
+| 📊 Статистика | `DataAnalyzer` | DatasetStats — езикови двойки, running min/max/средни; whitespace word counts или optional tiktoken |
+| 🔄 Конверсия | `DataConverter` | 10 формата, двупосочен експорт и HF train/validation/test splits |
+
+Това са възможности на Python API/CLI. Двата графични интерфейса показват по 8 формата и засега не предлагат ChatML/OpenAI.
+
+---
+
+## Инсталация
+
+### 1. Създай виртуална среда (препоръчително)
+
+```powershell
+cd C:\Users\k.petrov\Desktop\TMX
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. Инсталирай пакета
+
+**Всички интерфейси, включително Streamlit и tokenizer:**
+```powershell
+pip install -e ".[all]"
+```
+
+**Само основни зависимости (без Streamlit):**
+```powershell
+pip install -e .
+```
+
+**Със Streamlit:**
+```powershell
+pip install -e ".[streamlit]"
+```
+
+**За разработка и тестове:**
+```powershell
+pip install -e ".[dev]"
+python -m pytest
+```
+
+Основните модули имат fallback за някои библиотеки: XML парсърът може да използва `xml.etree`, JSONL има вграден writer, а при липса на pandas/pyarrow Parquet експортът записва JSONL fallback и след това връща грешка. CLI изисква `typer` и `rich`; без тях показва съобщение за инсталация и приключва.
+
+---
+
+## Интерфейси
+
+Пакетът предлага **3 начина** за употреба: CLI, Уеб UI и Streamlit. Всички 3 ползват едно и също ядро.
+
+---
+
+### 1. CLI (Command Line Interface)
+
+Entry point: `tmx-proc` или `python -m tmx_processor.cli`
+
+```powershell
+# Виж всички команди
+tmx-proc --help
+```
+
+#### Налични команди:
+
+| Команда | Какво прави | Пример |
+|---------|-------------|--------|
+| `parse` | Парсва TMX, показва статистики | `tmx-proc parse examples/sample_en_bg.tmx` |
+| `clean` | Почиства и филтрира | `tmx-proc clean in.tmx -o out.jsonl --min-words 2 --lang-pairs EN-BG` |
+| `convert` | Почиства, дедуплицира и конвертира по подразбиране | `tmx-proc convert in.tmx -o out.jsonl --fmt alpaca --instruction "Translate {src} to {tgt}"` |
+| `validate` | Валидира TU, показва report | `tmx-proc validate in.tmx --report report.json` |
+| `stats` | Генерира статистически отчет | `tmx-proc stats in.tmx --format table` |
+| `pipeline` | Цял workflow — parse → clean → dedupe → convert | `tmx-proc pipeline in.tmx -o out_folder --fmt hf_dataset` |
+
+#### Примери:
+
+```powershell
+# Парсене и преглед
+tmx-proc parse examples/sample_en_bg.tmx
+
+# Цял пайплайн — изход HuggingFace dataset splits
+tmx-proc pipeline examples/sample_en_bg.tmx -o .\output --fmt hf_dataset
+
+# Експорт за Alpaca instruction tuning
+tmx-proc convert examples/sample_en_bg.tmx -o .\output\alpaca.jsonl --fmt alpaca
+
+# Eкспорт за ShareGPT multi-turn формат
+tmx-proc convert examples/sample_en_bg.tmx -o .\output\sharegpt.jsonl --fmt sharegpt
+
+# Streaming JSONL — parse/clean/write iteratively; exact/fuzzy dedupe is disabled
+tmx-proc convert examples/sample_en_bg.tmx -o .\output\stream.jsonl --fmt jsonl --streaming --no-dedupe --preserve-placeholders
+TMX файлове от 500–1000 MB надвишават web/API upload лимита. Обработвай ги локално през CLI streaming mode, например `tmx-proc convert large.tmx -o large.jsonl --fmt jsonl --streaming --no-dedupe --preserve-placeholders`.
+TMX файлове от 500–1000 MB надвишават web/API upload лимита. Обработвай ги локално през CLI streaming mode, например `tmx-proc convert large.tmx -o large.jsonl --fmt jsonl --streaming --no-dedupe --preserve-placeholders`. За проверка на голям вход с временен output: `python examples/verify_large_stream.py path/to/large.tmx`.
+TMX файлове от 500–1000 MB надвишават web/API upload лимита. Обработвай ги локално през CLI streaming mode, например `tmx-proc convert large.tmx -o large.jsonl --fmt jsonl --streaming --no-dedupe --preserve-placeholders`. За end-to-end проверка с временен output използвай `python examples/verify_large_stream.py path/to/large.tmx`.
+
+# Сливане на няколко TMX файла с глобална exact дедупликация
+tmx-proc merge one.tmx two.tmx -o .\output\merged.jsonl
+
+# Pipeline към стандартни train/validation/test JSONL файлове
+tmx-proc pipeline examples/sample_en_bg.tmx -o .\output --fmt jsonl --seed 42
+```
+
+`--fmt` е alias на `--format`; `validate` приема `--report`; `pipeline` приема `--clean/--no-clean` и `--dedupe/--no-dedupe`. `convert` приема и `--streaming`, който изисква `--no-dedupe`. Има и `--expand`, `--lang-pairs`, `--bidirectional`, `--stratify` и команда `merge`.
+
+**Корекция:** CLI HF pipeline записва общите metadata стойности от HF split metadata. Ratio параметрите трябва да са неотрицателни и със сбор 1; при малък набор записите се пазят, обикновено само в train, така че validation/test могат да са празни.
+При малък non-HF CLI pipeline записите се запазват и split размерите не са отрицателни; validation/test могат да са празни.
+
+---
+
+### 2. Уеб UI (FastAPI + HTML SPA)
+
+Entry point: `tmx-web` или `python -m tmx_processor.web_api`
+
+Стартирай сървъра:
+```powershell
+tmx-web
+# или
+python -m tmx_processor.web_api --host 127.0.0.1 --port 8000
+```
+
+Отвори в браузър:
+- 🎨 **UI:** http://127.0.0.1:8000/
+- 📖 **Swagger API Docs:** http://127.0.0.1:8000/docs
+- 📘 **ReDoc:** http://127.0.0.1:8000/redoc
+
+#### Какво има в UI:
+
+1. **Step Tracker 1→4:** Качване → Преглед → Почистване → Експорт
+2. **Drag-and-drop качване** на .tmx файлове + 4 stats картички (брой единици, езици, грешки, предупреждения)
+3. **Преглед:** Статистика, валидационни грешки/предупреждения, таблица с последните 50 TU с пагинация
+4. **Почистване:** min/max дължина и думи, ratio, HTML/URL/email и lang-detect контроли
+5. **Дедупликация:** Fuzzy toggle + slider (0.50 – 0.99)
+6. **Експорт:** 8 формата — JSONL, Parquet, CSV, TSV, JSON, Alpaca, ShareGPT и HuggingFace Dataset. ChatML и OpenAI са налични през API, но не са показани в UI.
+7. **⚡Бърз Пайплайн (модал):** Едно копче — качване + clean + dedupe + експорт, сваля ZIP с metadata report
+
+#### API Ендпойнти (9, включително `/`):
+
+| Метод | Път | Параметри | Връща |
+|-------|-----|-----------|-------|
+| `GET` | `/` | — | HTML SPA страницата |
+| `POST` | `/api/upload` | Form: `file` (.tmx) | `{key, total_units, header, preview[5]}` |
+| `POST` | `/api/clean` | Form: `key, min_length..` | `{key, before, after, removed}` |
+| `POST` | `/api/dedupe` | Form: `key, fuzzy, fuzzy_threshold` | `{key, before, after, removed}` |
+| `GET` | `/api/validate/{key}` | — | `{total, valid, invalid, valid_pct, error_counts, warning_counts}` |
+| `GET` | `/api/stats/{key}` | — | DatasetStats като JSON |
+| `GET` | `/api/preview/{key}` | Query: `start, limit` | `{total, rows[]}`; UI заявява по 50 реда на страница |
+| `POST` | `/api/convert` | Form: `key, fmt, include_metadata, include_id, instruction` | Файл или ZIP; отговорът се подготвя в паметта |
+| `POST` | `/api/pipeline` | Form: `file, fmt, clean, dedupe, fuzzy, include_metadata, include_id` | ZIP с данни + `pipeline_report.json` |
+
+> 🔗 API Docs с интерактивен playground са на `/docs` (Swagger UI).
+
+---
+
+### 3. Streamlit UI
+
+За data-science потребители, обикновени с интерактивни dashboards.
+
+Стартирай:
+```powershell
+pip install -e .[streamlit]   # ако не е инсталирано
+streamlit run src/tmx_processor/web_streamlit.py
+```
+
+Отвори в браузър: http://localhost:8501
+
+#### 5 таба:
+
+1. **📥 Качване & Преглед** — качи .tmx, виж stats + preview таблица
+2. **🧹 Почистване** — интерактивна форма с toggle-и и range slider-и; живо before/after
+3. **🗑️ Дедупликация** — exact vs fuzzy с threshold slider
+4. **✅ Валидация & 📊 Статистика** — 2 колони: validation table + language pairs charts
+5. **💾 Експорт** — dropdown с 8 формата и download button; ChatML/OpenAI не са включени в dropdown-а.
+
+---
+
+## Python API
+
+За интеграция в собствени скриптове или ноутбуци.
+
+```python
+from pathlib import Path
+from tmx_processor import (
+    TMXParser, DataCleaner, DataDeduper, DataValidator, DataAnalyzer, DataConverter,
+    CleanConfig, OutputFormat,
+)
+
+# 1. Парсене на примерен файл (parse_all материализира TU в паметта)
+parser = TMXParser(Path("examples/sample_en_bg.tmx"))
+all_units = parser.parse_all()
+language_pairs = sorted({(u.source_lang, u.target_lang) for u in all_units})
+print(f"Езикови двойки: {language_pairs} | Единици: {len(all_units)}")
+
+# 2. Почистване
+cleaner = DataCleaner(CleanConfig(
+    min_length=2, max_length_ratio=5.0,
+    remove_html_tags=True, remove_urls=False,
+    preserve_placeholders=True,
+))
+clean_units = cleaner.clean_units(all_units)
+print(f"Почистени: {len(clean_units)} от {len(all_units)}")
+
+# 3. Дедупликация
+deduper = DataDeduper()
+deduped = deduper.dedupe(clean_units)
+print(f"След дедуп: {len(deduped)}")
+
+# 4. Валидация
+validator = DataValidator()
+report = validator.report(deduped)
+print(f"Валидни: {report['valid']}/{report['total']}")
+
+# 5. Статистика
+analyzer = DataAnalyzer()
+stats = analyzer.analyze(deduped)
+print(f"Езикови двойки: {stats.language_pairs}")
+print(f"Средна дълга на източника: {stats.avg_source_length:.0f} знака")
+
+# 6. Експорт за AI обучение
+converter = DataConverter()
+out_dir = Path("./output")
+out_dir.mkdir(exist_ok=True)
+
+converter.convert(
+    deduped, output_path=out_dir / "train.jsonl", fmt=OutputFormat.JSONL
+)
+converter.convert(
+    deduped, output_path=out_dir / "alpaca.jsonl", fmt=OutputFormat.ALPACA,
+    instruction_tmpl="Преведи следния текст от {src} на {tgt}:"
+)
+converter.convert(
+    deduped, output_path=out_dir / "hf_data", fmt=OutputFormat.HF_DATASET,
+    train_ratio=0.8, val_ratio=0.1, test_ratio=0.1,
+)
+print(f"Експортирано в {out_dir}")
+```
+
+`parse_all()` връща списък и зарежда всички TU в паметта.
+`preserve_placeholders=True` запазва tokens като `{0}`, `%1$s` и placeholders в HTML атрибути дори когато самите HTML тагове се премахват. По подразбиране placeholders се махат като цели tokens.
+
+`DataConverter.convert(..., streaming=True)` подава generator-а директно към JSONL writer-а. CLI `--streaming` използва `iter_units()` и `clean_iter()`; той изисква `--no-dedupe`, защото deduper-ът материализира данните. HF splits и останалите формати все още изискват списъци в паметта.
+
+Готов пример: [examples/basic_pipeline.py](examples/basic_pipeline.py)
+
+---
+
+## Формати за експорт (10)
+
+| Формат | `OutputFormat` | Подходящ за | Име на файл |
+|--------|----------------|-------------|-------------|
+| **JSONL** | `jsonl` | Универсален, скриптове | `output.jsonl` |
+| **JSON** | `json` | Преглед, конфигове | `output.json` |
+| **CSV** | `csv` | Excel, данъчни анализи | `output.csv` |
+| **TSV** | `tsv` | Инструменти за MT | `output.tsv` |
+| **Parquet** | `parquet` | Големи dataset-и, pandas/HF | `output.parquet` |
+| **Alpaca** | `alpaca` | LLM instruction tuning | `alpaca.jsonl` |
+| **ShareGPT** | `sharegpt` | Chat / multi-turn модели | `sharegpt.jsonl` |
+| **ChatML** | `chatml` | Chat fine-tuning с `messages` | `chatml.jsonl` |
+| **OpenAI messages** | `openai` | Chat training с `messages` | `openai.jsonl` |
+| **HuggingFace Dataset** | `hf_dataset` | train/validation/test splits | папка с `train.jsonl`, `validation.jsonl`, `test.jsonl`, `metadata.json` |
+
+Python `DataConverter` записва HF split-овете в директория. Уеб API ги връща като ZIP. Стандартните split-ове са възпроизводими със seed `42`; малки или силно стратифицирани групи може да дадат празен validation/test split.
+
+**Alpaca example row:**
+```json
+{
+  "instruction": "Преведи от EN на BG:",
+  "input": "Hello world",
+  "output": "Здравей свят"
+}
+```
+
+**ShareGPT example row:**
+```json
+{
+  "conversations": [
+    {"from": "system", "value": "Ти си професионален преводач."},
+    {"from": "human",  "value": "Преведи: Hello world"},
+    {"from": "gpt",    "value": "Здравей свят"}
+  ]
+}
+```
+
+---
+
+## Архитектура
+
+```
+examples/*.tmx  ──┐
+                  │
+CLI (tmx-proc) ───┤
+                  ├──►  TMXProcessor Core  ───►  Output files (.jsonl, .parquet, .zip)
+Web UI (FastAPI) ─┤         │
+                  │         ├ parser.py     (TMXParser + streaming iterparse)
+Streamlit UI ─────┘         ├ cleaner.py    (DataCleaner + 8 правил)
+                            ├ validator.py  (DataValidator + 8 проверки)
+                            ├ deduper.py    (Exact + MinHash LSH fuzzy)
+                            ├ analyzer.py   (DatasetStats dataclass)
+                            └ converter.py  (10 OutputFormat)
+```
+
+**Директорийна структура:**
+```
+TMX/
+├── pyproject.toml              # Пакет metadata + entry points
+├── requirements.txt            # Всички dependencies
+├── src/
+│   └── tmx_processor/
+│       ├── __init__.py         # Public API export
+│       ├── parser.py           # TMX streaming XML parser
+│       ├── cleaner.py          # Почистване + филтри
+│       ├── converter.py        # Конверсия към 10 формата
+│       ├── validator.py        # Валидация TU
+│       ├── deduper.py          # Exact + fuzzy дедупликация
+│       ├── analyzer.py         # Статистика DatasetStats
+│       ├── cli.py              # Typer CLI (tmx-proc)
+│       ├── web_api.py          # FastAPI + REST endpoints (tmx-web)
+│       ├── web_streamlit.py    # Streamlit UI в 5 таба
+│       └── web/
+│           └── index.html      # TailwindCSS + Alpine.js SPA
+├── examples/
+│   ├── sample_en_bg.tmx        # Примерен bilingual TMX
+│   ├── basic_pipeline.py       # Python API пример
+│   ├── test_basic.py           # Ръчен smoke скрипт
+│   ├── test_web_api.py         # Ръчен HTTP smoke скрипт
+│   ├── verify_large_stream.py  # Голям TMX streaming integration check
+│   └── mozilla_*.tmx           # Големи Mozilla corpus fixtures
+└── tests/
+    ├── test_parser.py
+    ├── test_cleaner.py
+    ├── test_converter.py
+    ├── test_deduper.py
+    ├── test_analyzer.py
+    ├── test_validator.py
+    ├── test_cli.py
+    └── test_web_api.py
+```
+
+---
+
+## Примерни файлове
+
+- [examples/sample_en_bg.tmx](examples/sample_en_bg.tmx) — 25 примера EN↔BG (съдържа празни, шумни, дубликати, inline тагове)
+- [examples/sample_en_bg.tmx](examples/sample_en_bg.tmx) — 25 примера EN↔BG (съдържа празни, шумни, дубликати, inline тагове)
+- [examples/big_test.tmx](examples/big_test.tmx) — 549 MB UTF-16 corpus за streaming integration; lxml recovery предупреди за 3 invalid XML control characters
+- [examples/basic_pipeline.py](examples/basic_pipeline.py) — примерен Python API pipeline
+- [tests/test_parser.py](tests/test_parser.py) — pytest тестове за парсър
+- [tests/test_cleaner.py](tests/test_cleaner.py) — pytest тестове за cleaner
+- [tests/test_converter.py](tests/test_converter.py) — pytest тестове за JSONL conversion, splits и streaming
+- [tests/test_deduper.py](tests/test_deduper.py) — exact/fuzzy fallback и multi-file merge тестове
+- [tests/test_analyzer.py](tests/test_analyzer.py) — statistics, empty input и duplicate counts
+- [tests/test_validator.py](tests/test_validator.py) — pytest тестове за validator
+- [tests/test_cli.py](tests/test_cli.py) — CLI pipeline/streaming regression tests
+- [tests/test_web_api.py](tests/test_web_api.py) — базови API тестове с `TestClient`
+- [examples/test_basic.py](examples/test_basic.py) — ръчен smoke скрипт за избрани модули и формати
+- [examples/test_web_api.py](examples/test_web_api.py) — ръчен HTTP smoke скрипт, изискващ сървър на порт 8001
+- [examples/verify_large_stream.py](examples/verify_large_stream.py) — streaming CLI integration check с временен output
+
+Пусни тестовете:
+```powershell
+$env:PYTHONIOENCODING="utf-8"
+pip install -e ".[dev]"
+python -m pytest
+.\.venv\Scripts\python.exe examples\test_basic.py
+# В отделен терминал за HTTP smoke теста:
+tmx-web --port 8001
+# След това изпълни:
+.\.venv\Scripts\python.exe examples\test_web_api.py
+```
+
+---
+
+## Отстраняване на проблеми
+
+| Симптом | Решение |
+|---------|---------|
+| `ModuleNotFoundError: No module named 'lxml'` | Парсърът има fallback към `xml.etree.ElementTree`, но `pip install lxml` е по-бърз |
+| UnicodeEncodeError при print на кирилица | `$env:PYTHONIOENCODING="utf-8"` в PowerShell преди стартиране |
+| WinError 5 Access denied при pip install | Използвай `.venv` или `pip install --user`; пакетът работи и без teглите |
+| Address already in use при стартиране на уеб | Промени порта: `tmx-web --port 8001` |
+| CLI показва съобщение за липсващи зависимости | Инсталирай пакета с `pip install -e .` |
+| Fuzzy дедуп не работи | `pip install datasketch numpy`; exact методът работи винаги |
+| Parquet експорт връща грешка | Инсталирай `pandas` и `pyarrow`; без тях се записва JSONL fallback и се вдига грешка |
+| pytest не се намира | Активирай `.venv` и изпълни `pip install -e ".[dev]"` |
+Уеб API слуша на localhost и приема до 100 MiB на TMX файл; pure ASGI middleware ограничава целия request body до 101 MiB преди multipart parsing. Upload-ът се копира на части и временният TMX се трие след parse. Сесиите имат inactivity TTL от 1 час, подновяван при достъп; lifespan task чисти изтеклите сесии на всеки 60 секунди и се спира при shutdown. Има лимит 50 активни сесии, 128 MiB оценка на текст/metadata за сесия и 512 MiB общо. Оценката не е точен process-RAM cap (обектният overhead не се измерва). Store mutations/snapshots са защитени с lock. `--cleanup-uploads` чисти остатъчни файлове при старт.
+
+TMX файлове от 500–1000 MB надвишават web/API upload лимита. Обработвай ги локално през CLI streaming mode, например `tmx-proc convert large.tmx -o large.jsonl --fmt jsonl --streaming --no-dedupe --preserve-placeholders`. Изисква се `lxml`; exact/fuzzy dedupe не е налично в streaming mode, а HF splitting/другите изходни формати остават memory-bound. За интеграционна проверка с временен output използвай `python examples/verify_large_stream.py path/to/large.tmx`.
+Проверка на `examples/big_test.tmx` (549 MB UTF-16) на текущата машина даде 706,728 JSONL реда, 34.5 MiB peak working set и 26.6 MiB private bytes. Това е benchmark на този файл/компютър, не универсална RAM гаранция.
+
+---
+
+## Лиценз
+
+MIT License. Виж [LICENSE](LICENSE).

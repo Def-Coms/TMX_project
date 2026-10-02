@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tmx-processor"
+version = "0.1.0"
+description = "Платформа за обработка на TMX езикови файлове за обучение на AI агенти"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "TMX Processor Team"}
+]
+dependencies = [
+    "lxml>=4.9.0",
+    "regex>=2023.0.0",
+    "langdetect>=1.0.9",
+    "jsonlines>=4.0.0",
+    "pandas>=2.0.0",
+    "pyarrow>=12.0.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "tqdm>=4.65.0",
+    "datasketch>=1.5.0",
+    "numpy>=1.24.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "httpx2>=2.13.1",
+]
+streamlit = [
+    "streamlit>=1.30.0",
+]
+tokenizer = [
+    "tiktoken>=0.5.0",
+]
+all = [
+    "streamlit>=1.30.0",
+    "tiktoken>=0.5.0",
+]
+
+[project.scripts]
+tmx-proc = "tmx_processor.cli:main"
+tmx-web = "tmx_processor.web_api:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tmx_processor = ["web/*.html"]

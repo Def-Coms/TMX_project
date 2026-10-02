@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TMX Processor — Уеб Интерфейс</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#312e81' }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  [x-cloak] { display: none !important; }
+  .spinner {
+    border: 3px solid rgba(99,102,241,.2);
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    width: 1.1rem; height: 1.1rem;
+    display: inline-block;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .step-active { background: linear-gradient(135deg,#6366f1,#8b5cf6); color: white; }
+  .step-done { background: #10b981; color: white; }
+  .step-todo { background: #e5e7eb; color: #6b7280; }
+  .drop-zone.dragover { border-color: #6366f1; background: #eef2ff; }
+  .modal-backdrop { background: rgba(15,23,42,.55); backdrop-filter: blur(2px); }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800"
+      x-data="app()" x-init="init()">
+
+<!-- Header -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white font-bold text-lg">T</div>
+      <div>
+        <h1 class="font-bold text-lg">TMX Processor</h1>
+        <p class="text-xs text-slate-500">Подготовка на езикови данни за AI обучение</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">API Докум.</a>
+      <button @click="showQuick = !showQuick"
+              class="px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800">Бърз Пайплайн ⚡</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-8">
+
+<!-- Quick Pipeline Modal -->
+<div x-cloak x-show="showQuick" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4" @click.self="showQuick=false">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h3 class="text-xl font-bold">⚡ Бърз Пайплайн</h3>
+        <p class="text-sm text-slate-500">Качете един или повече .tmx файлове — обработка и сваляне на dataset</p>
+      </div>
+      <button @click="showQuick=false" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="space-y-4">
+      <label class="block">
+        <span class="text-sm font-medium">TMX файлове</span>
+        <input type="file" accept=".tmx" multiple x-ref="quickFile" @change="updateQuickFiles()"
+               class="mt-1 block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 border border-slate-200 rounded-lg" />
+        <span x-show="quickFileLabel" class="mt-1 block text-xs text-slate-500" x-text="quickFileLabel"></span>
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-sm font-medium">Изходен формат</span>
+          <select x-model="quickFmt" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+            <option value="jsonl">JSONL</option>
+            <option value="parquet" x-show="!quickLarge">Parquet</option>
+            <option value="csv" x-show="!quickLarge">CSV</option>
+            <option value="tsv" x-show="!quickLarge">TSV</option>
+            <option value="json" x-show="!quickLarge">JSON</option>
+            <option value="alpaca">Alpaca</option>
+            <option value="sharegpt">ShareGPT</option>
+            <option value="chatml">ChatML</option>
+            <option value="openai">OpenAI messages</option>
+            <option value="dpo">DPO/ORPO</option>
+            <option value="prompt_completion">Prompt/Completion</option>
+            <option value="reasoning">Reasoning</option>
+            <option value="hf_dataset" x-show="!quickLarge">HF Dataset (splits)</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium">&nbsp;</span>
+          <div class="mt-1 flex gap-4 pt-1.5">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" x-model="quickClean" checked /> Почистване</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" x-model="quickDedupe" checked /> Дедупл.</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" x-model="quickFuzzy" :disabled="quickLarge" /> Fuzzy</label>
+          </div>
+        </label>
+      </div>
+      <label class="flex items-start gap-2 rounded-lg bg-indigo-50 p-3 text-sm">
+        <input type="checkbox" x-model="quickLarge" class="mt-1" />
+        <span><b>Големи или множество файлове — streaming до 1 GiB общо</b><br />Файловете се обработват последователно и се сливат; exact dedupe е глобален между файловете. JSONL/AI JSONL формати. Fuzzy и HF splits не се поддържат. Резултатът се сваля директно.</span>
+      </label>
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+        <span class="text-xs text-slate-500" x-text="quickLarge ? 'Общо максимум 1 GiB · глобален exact dedupe е disk-backed' : 'Пак ще включва и pipeline_report.json'"></span>
+        <button :disabled="quickRunning" @click="runQuick()"
+                class="px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
+          <span x-show="quickRunning" class="spinner mr-2"></span>
+          Стартирай & Свали →
+        </button>
+      </div>
+      <div x-show="quickMsg" class="text-sm rounded-lg p-3"
+           :class="quickMsgType==='error' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'">
+        <span x-html="quickMsg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 1: Upload + Step Tracker -->
+<section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="font-bold text-xl">1. Качване на TMX файл</h2>
+    <div class="flex items-center gap-2">
+      <template x-for="(s, i) in steps" :key="i">
+        <div class="flex items-center">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition"
+               :class="{
+                 'step-done': currentStep>i+1,
+                 'step-active': currentStep===i+1,
+                 'step-todo': currentStep<i+1
+               }">
+            <span x-text="currentStep>i+1 ? '✓' : i+1"></span>
+          </div>
+          <span x-text="s" class="ml-2 text-xs font-medium" :class="{'text-brand-700': currentStep>=i+1}"></span>
+          <span x-if="i<steps.length-1" class="w-8 h-0.5 bg-slate-200 mx-2"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <div class="drop-zone border-2 border-dashed border-slate-300 rounded-xl p-10 text-center transition"
+       @dragenter.prevent="$el.classList.add('dragover')"
+       @dragover.prevent="$el.classList.add('dragover')"
+       @dragleave.prevent="$el.classList.remove('dragover')"
+       @drop.prevent="dropFile($event)">
+    <input type="file" accept=".tmx" id="tmxInput" class="hidden" @change="handleFile" />
+    <div class="mx-auto w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center text-brand-600 mb-4">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <p class="font-semibold mb-1">Пуснете .tmx файл тук</p>
+    <p class="text-sm text-slate-500 mb-4">или</p>
+    <button onclick="document.getElementById('tmxInput').click()"
+            class="px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700">
+      Изберете файл
+    </button>
+    <p x-show="fileName" class="mt-4 text-sm text-slate-600">
+      Избран: <span x-text="fileName" class="font-medium text-brand-700"></span>
+    </p>
+  </div>
+
+  <div x-show="sessionKey" class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="rounded-xl bg-slate-50 p-4">
+      <p class="text-xs uppercase tracking-wider text-slate-500 mb-1">Общо TU</p>
+      <p class="text-2xl font-bold" x-text="fileInfo.total_units ?? 0"></p>
+    </div>
+    <div class="rounded-xl bg-slate-50 p-4">
+      <p class="text-xs uppercase tracking-wider text-slate-500 mb-1">Изходен език</p>
+      <p class="text-2xl font-bold" x-text="fileInfo.header?.source_lang || 'N/A'"></p>
+    </div>
+    <div class="rounded-xl bg-slate-50 p-4">
+      <p class="text-xs uppercase tracking-wider text-slate-500 mb-1">Инструмент</p>
+      <p class="text-lg font-semibold truncate" x-text="fileInfo.header?.creation_tool || 'N/A'"></p>
+    </div>
+    <div class="rounded-xl bg-slate-50 p-4">
+      <p class="text-xs uppercase tracking-wider text-slate-500 mb-1">Сессия</p>
+      <p class="text-sm font-mono text-brand-700" x-text="sessionKey"></p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: Preview -->
+<section x-show="sessionKey" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-bold text-xl">2. Преглед на данните</h2>
+    <div class="flex items-center gap-3">
+      <button @click="fetchStats()" class="text-sm px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">📊 Статистика</button>
+      <button @click="fetchValidate()" class="text-sm px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">✅ Валидация</button>
+      <button @click="fetchPreview()" class="text-sm px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700">Обнови преглед</button>
+    </div>
+  </div>
+
+  <!-- Stats card -->
+  <div x-show="stats" class="mb-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="rounded-xl border border-slate-200 p-4">
+      <p class="text-xs uppercase text-slate-500">Средна дължина (символа)</p>
+      <p class="text-sm mt-1">Изход: <b x-text="stats.source?.avg_chars?.toFixed(1)"></b></p>
+      <p class="text-sm">Превод: <b x-text="stats.target?.avg_chars?.toFixed(1)"></b></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 p-4">
+      <p class="text-xs uppercase text-slate-500">Средна дължина (думи)</p>
+      <p class="text-sm mt-1">Изход: <b x-text="stats.source?.avg_words?.toFixed(1)"></b></p>
+      <p class="text-sm">Превод: <b x-text="stats.target?.avg_words?.toFixed(1)"></b></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 p-4">
+      <p class="text-xs uppercase text-slate-500">Общо токени</p>
+      <p class="text-sm mt-1">Изход: <b x-text="stats.source?.total_words?.toLocaleString()"></b></p>
+      <p class="text-sm">Превод: <b x-text="stats.target?.total_words?.toLocaleString()"></b></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 p-4">
+      <p class="text-xs uppercase text-slate-500">Езикови двойки</p>
+      <div class="text-sm mt-1 max-h-16 overflow-auto">
+        <template x-for="(c, pair) in stats.language_pairs || {}" :key="pair">
+          <div><span class="font-mono" x-text="pair"></span>: <b x-text="c"></b></div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Validation card -->
+  <div x-show="validation" class="mb-4 rounded-xl border border-slate-200 p-4">
+    <div class="grid grid-cols-4 gap-4 text-center mb-4">
+      <div><p class="text-xs text-slate-500">Общо</p><p class="text-2xl font-bold" x-text="validation.total"></p></div>
+      <div><p class="text-xs text-slate-500">Валидни</p><p class="text-2xl font-bold text-green-600" x-text="validation.valid"></p></div>
+      <div><p class="text-xs text-slate-500">Невалидни</p><p class="text-2xl font-bold text-red-600" x-text="validation.invalid"></p></div>
+      <div><p class="text-xs text-slate-500">%</p><p class="text-2xl font-bold text-brand-700" x-text="(validation.valid_pct||0).toFixed(1)+'%'"></p></div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <div x-show="Object.keys(validation.error_counts||{}).length">
+        <p class="font-medium mb-2 text-red-700">Най-чести грешки:</p>
+        <ul class="space-y-1">
+          <template x-for="(c, err) in validation.error_counts || {}" :key="err">
+            <li class="flex justify-between bg-red-50 px-3 py-1.5 rounded-lg"><span x-text="err"></span><b x-text="c"></b></li>
+          </template>
+        </ul>
+      </div>
+      <div x-show="Object.keys(validation.warning_counts||{}).length">
+        <p class="font-medium mb-2 text-yellow-700">Предупреждения:</p>
+        <ul class="space-y-1">
+          <template x-for="(c, w) in validation.warning_counts || {}" :key="w">
+            <li class="flex justify-between bg-yellow-50 px-3 py-1.5 rounded-lg"><span x-text="w"></span><b x-text="c"></b></li>
+          </template>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview table -->
+  <div class="rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 px-4 py-2 flex items-center justify-between text-sm">
+      <span>
+        Показани <b x-text="previewStart+1"></b>–<b x-text="previewEnd"></b> от <b x-text="previewTotal"></b>
+      </span>
+      <div class="flex items-center gap-2">
+        <button @click="previewStart=Math.max(0,previewStart-50);fetchPreview()" :disabled="previewStart===0" class="px-3 py-1 border rounded disabled:opacity-40">← Предишни</button>
+        <button @click="previewStart=previewStart+50;fetchPreview()" :disabled="previewEnd>=previewTotal" class="px-3 py-1 border rounded disabled:opacity-40">Следващи →</button>
+      </div>
+    </div>
+    <div class="overflow-auto max-h-96">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 sticky top-0">
+          <tr>
+            <th class="text-left px-4 py-2 w-12">#</th>
+            <th class="text-left px-4 py-2 w-20">Език</th>
+            <th class="text-left px-4 py-2">Изходен текст</th>
+            <th class="text-left px-4 py-2 w-20">Език</th>
+            <th class="text-left px-4 py-2">Превод</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <template x-for="(row, i) in previewRows" :key="i">
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-2 text-slate-500" x-text="previewStart+i+1"></td>
+              <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-mono" x-text="row.source_lang"></span></td>
+              <td class="px-4 py-2 max-w-md" x-text="row.source"></td>
+              <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-mono" x-text="row.target_lang"></span></td>
+              <td class="px-4 py-2 max-w-md" x-text="row.target"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: Clean + Dedupe -->
+<section x-show="sessionKey" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+  <h2 class="font-bold text-xl mb-4">3. Почистване & Дедупликация</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="rounded-xl border border-slate-200 p-5">
+      <h3 class="font-semibold mb-3 flex items-center gap-2">🧼 Clean конфигурация</h3>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <label>Мин. дължина <input type="number" x-model="cleanCfg.min_length" class="w-full mt-1 border rounded px-2 py-1" /></label>
+        <label>Макс. дължина <input type="number" x-model="cleanCfg.max_length" class="w-full mt-1 border rounded px-2 py-1" /></label>
+        <label>Мин. думи <input type="number" x-model="cleanCfg.min_words" class="w-full mt-1 border rounded px-2 py-1" /></label>
+        <label>Макс. думи <input type="number" x-model="cleanCfg.max_words" class="w-full mt-1 border rounded px-2 py-1" /></label>
+        <label class="col-span-2">Макс. съотношение дължини <input type="number" step="0.1" x-model="cleanCfg.max_length_ratio" class="w-full mt-1 border rounded px-2 py-1" /></label>
+      </div>
+      <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="cleanCfg.remove_html" /> Премахни HTML</label>
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="cleanCfg.remove_urls" /> Премахни URL</label>
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="cleanCfg.remove_emails" /> Премахни имейли</label>
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="cleanCfg.lang_detect" /> Детекция език</label>
+        <label class="flex items-center gap-2 col-span-2"><input type="checkbox" x-model="cleanCfg.preserve_placeholders" /> Запази placeholders</label>
+      </div>
+      <button @click="runClean()" :disabled="cleanRunning"
+              class="mt-4 w-full px-4 py-2 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
+        <span x-show="cleanRunning" class="spinner mr-2"></span>
+        Изпълни Clean
+      </button>
+      <p x-show="cleanResult" class="mt-2 text-sm rounded p-2"
+         :class="cleanResult.removed>0?'bg-amber-50 text-amber-700':'bg-green-50 text-green-700'">
+        Преди: <b x-text="cleanResult.before"></b>, След: <b x-text="cleanResult.after"></b>,
+        Премахнати: <b x-text="cleanResult.removed"></b>
+      </p>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 p-5">
+      <h3 class="font-semibold mb-3 flex items-center gap-2">🔁 Дедупликация</h3>
+      <div class="space-y-3 text-sm">
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="dedupeCfg.fuzzy" />
+          <b>Fuzzy</b> дедупликация (MinHash LSH)
+        </label>
+        <label x-show="dedupeCfg.fuzzy">
+          Threshold (0–1): <input type="range" min="0.5" max="1" step="0.05" x-model.number="dedupeCfg.fuzzy_threshold" class="w-40 mx-2" />
+          <span x-text="dedupeCfg.fuzzy_threshold"></span>
+        </label>
+        <p class="text-xs text-slate-500">Exact дедупликация винаги се прилага.</p>
+      </div>
+      <button @click="runDedupe()" :disabled="dedupeRunning"
+              class="mt-4 w-full px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50">
+        <span x-show="dedupeRunning" class="spinner mr-2"></span>
+        Изпълни Dedupe
+      </button>
+      <p x-show="dedupeResult" class="mt-2 text-sm rounded p-2"
+         :class="dedupeResult.removed>0?'bg-amber-50 text-amber-700':'bg-green-50 text-green-700'">
+        Преди: <b x-text="dedupeResult.before"></b>, След: <b x-text="dedupeResult.after"></b>,
+        Премахнати: <b x-text="dedupeResult.removed"></b>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4: Export -->
+<section x-show="sessionKey" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+  <h2 class="font-bold text-xl mb-4">4. Експорт за AI обучение</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="md:col-span-2 rounded-xl border border-slate-200 p-5">
+      <h3 class="font-semibold mb-3">Изберете формат</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        <template x-for="f in formats" :key="f.v">
+          <label class="cursor-pointer border rounded-lg p-3 text-center transition"
+                 :class="exportCfg.fmt===f.v ? 'border-brand-600 bg-brand-50 ring-2 ring-brand-100' : 'hover:bg-slate-50'">
+            <input type="radio" x-model="exportCfg.fmt" :value="f.v" class="sr-only" />
+            <div class="text-lg mb-1" x-text="f.icon"></div>
+            <div class="text-xs font-semibold" x-text="f.l"></div>
+            <div class="text-[10px] text-slate-500" x-text="f.d"></div>
+          </label>
+        </template>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mb-4">
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="exportCfg.include_metadata" /> Включи metadata</label>
+        <label class="flex items-center gap-2"><input type="checkbox" x-model="exportCfg.include_id" /> Включи TU ID</label>
+        <template x-if="['alpaca','sharegpt','chatml','openai','dpo','prompt_completion','reasoning'].includes(exportCfg.fmt)">
+          <label>Инструкция (по избор)
+            <input type="text" x-model="exportCfg.instruction" placeholder="Оставете празно за автоген."
+                   class="w-full mt-1 border rounded px-2 py-1 text-xs" />
+          </label>
+        </template>
+      </div>
+      <button @click="runConvert()" :disabled="convertRunning"
+              class="px-5 py-2.5 rounded-lg bg-gradient-to-r from-brand-600 to-violet-600 text-white font-semibold shadow hover:opacity-90 disabled:opacity-50">
+        <span x-show="convertRunning" class="spinner mr-2"></span>
+        💾 Генерирай & Свали
+      </button>
+    </div>
+    <div class="rounded-xl border border-slate-200 p-5 bg-slate-50">
+      <h3 class="font-semibold mb-2">💡 Съвет</h3>
+      <ul class="text-sm text-slate-600 space-y-2 list-disc pl-5">
+        <li><b>JSONL</b> — най-често използван за `datasets` библиотека.</li>
+        <li><b>Parquet</b> — за големи датасети (колоничен формат, компресия).</li>
+        <li><b>Alpaca</b> — за instruction tuning (LLaMA, Mistral).</li>
+        <li><b>ShareGPT</b> — за chat модели (Llama 3, Qwen).</li>
+        <li><b>ChatML / OpenAI</b> — messages формат за chat fine-tuning.</li>
+        <li><b>HF Dataset</b> — автоматично train/val/test splits в ZIP.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="text-center text-xs text-slate-500 py-8">
+  TMX Processor · API Docs → <a href="/docs" class="underline">/docs</a> · v0.1.0
+</footer>
+
+</main>
+
+<!-- Alpine.js (малък, интегрален) -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<script>
+function app() {
+  return {
+    // UI state
+    showQuick: false,
+    steps: ['Качване', 'Преглед', 'Почистване', 'Експорт'],
+    currentStep: 1,
+
+    // Session
+    sessionKey: null,
+    fileName: null,
+    fileInfo: {},
+
+    // Preview
+    previewRows: [],
+    previewStart: 0,
+    previewEnd: 0,
+    previewTotal: 0,
+
+    stats: null,
+    validation: null,
+
+    // Clean
+    cleanCfg: { min_length: 1, max_length: 10000, min_words: 0, max_words: 0, max_length_ratio: 3.0, remove_html: true, remove_urls: false, remove_emails: false, lang_detect: false, preserve_placeholders: false },
+    cleanRunning: false, cleanResult: null,
+
+    // Dedupe
+    dedupeCfg: { fuzzy: false, fuzzy_threshold: 0.9 },
+    dedupeRunning: false, dedupeResult: null,
+
+    // Export
+    exportCfg: { fmt: 'jsonl', include_metadata: false, include_id: false, instruction: '' },
+    formats: [
+      { v:'jsonl',     l:'JSONL',       icon:'📄', d:'ML стандарт' },
+      { v:'parquet',   l:'Parquet',     icon:'🗜️', d:'Колоничен' },
+      { v:'csv',       l:'CSV',         icon:'📊', d:'Spreadsheet' },
+      { v:'json',      l:'JSON',        icon:'🧾', d:'Масив обекти' },
+      { v:'alpaca',    l:'Alpaca',      icon:'🦙', d:'Instruction' },
+      { v:'sharegpt',  l:'ShareGPT',    icon:'💬', d:'Chat формат' },
+      { v:'chatml',    l:'ChatML',      icon:'🧠', d:'messages' },
+      { v:'openai',    l:'OpenAI',      icon:'✨', d:'messages' },
+      { v:'dpo',       l:'DPO/ORPO',    icon:'⚖️', d:'Preference' },
+      { v:'prompt_completion', l:'Prompt/Comp', icon:'📝', d:'Generic' },
+      { v:'reasoning', l:'Reasoning',   icon:'🤔', d:'CoT' },
+      { v:'tsv',       l:'TSV',         icon:'📑', d:'Tab-separated' },
+      { v:'hf_dataset',l:'HF Dataset',  icon:'🤗', d:'Splits + ZIP' },
+    ],
+    convertRunning: false,
+
+    // Quick pipeline
+    quickFmt: 'jsonl', quickClean: true, quickDedupe: true, quickFuzzy: false, quickLarge: false,
+    quickFileLabel: '',
+    quickRunning: false, quickMsg: null, quickMsgType: 'info',
+
+    init() {},
+
+    updateQuickFiles() {
+      const files = Array.from(this.$refs.quickFile.files || []);
+      const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+      this.quickFileLabel = files.length
+        ? `${files.length} файл(а) · ${(totalBytes / 1024 / 1024).toFixed(1)} MiB общо`
+        : '';
+    },
+
+    dropFile(e) {
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      const inp = document.getElementById('tmxInput');
+      inp.files = e.dataTransfer.files;
+      this.handleFile({ target: inp });
+    },
+
+    async handleFile(e) {
+      const f = e.target.files[0];
+      if (!f) return;
+      this.fileName = f.name;
+      const fd = new FormData();
+      fd.append('file', f);
+      try {
+        const r = await fetch('/api/upload', { method: 'POST', body: fd });
+        if (!r.ok) { const err = await r.json(); throw new Error(err.detail || r.statusText); }
+        const d = await r.json();
+        this.sessionKey = d.key;
+        this.fileInfo = d;
+        this.currentStep = 2;
+        this.previewRows = d.preview.map(p => ({...p, source: p.source, target: p.target}));
+        this.fetchPreview();
+      } catch(e) {
+        alert('Грешка при качване: ' + e.message);
+      }
+    },
+
+    async fetchPreview() {
+      if (!this.sessionKey) return;
+      const r = await fetch(`/api/preview/${this.sessionKey}?start=${this.previewStart}&limit=50`);
+      const d = await r.json();
+      this.previewRows = d.rows;
+      this.previewTotal = d.total;
+      this.previewEnd = d.end;
+    },
+
+    async fetchStats() {
+      const r = await fetch(`/api/stats/${this.sessionKey}`);
+      this.stats = await r.json();
+    },
+
+    async fetchValidate() {
+      const r = await fetch(`/api/validate/${this.sessionKey}`);
+      this.validation = await r.json();
+    },
+
+    async runClean() {
+      this.cleanRunning = true; this.cleanResult = null;
+      const fd = new FormData();
+      fd.append('key', this.sessionKey);
+      Object.entries(this.cleanCfg).forEach(([k,v]) => fd.append(k, v));
+      const r = await fetch('/api/clean', { method: 'POST', body: fd });
+      const d = await r.json();
+      this.cleanResult = d;
+      this.cleanRunning = false;
+      this.currentStep = Math.max(this.currentStep, 3);
+      this.fetchPreview();
+    },
+
+    async runDedupe() {
+      this.dedupeRunning = true; this.dedupeResult = null;
+      const fd = new FormData();
+      fd.append('key', this.sessionKey);
+      fd.append('fuzzy', this.dedupeCfg.fuzzy);
+      fd.append('fuzzy_threshold', this.dedupeCfg.fuzzy_threshold);
+      const r = await fetch('/api/dedupe', { method: 'POST', body: fd });
+      const d = await r.json();
+      this.dedupeResult = d;
+      this.dedupeRunning = false;
+      this.currentStep = Math.max(this.currentStep, 3);
+      this.fetchPreview();
+    },
+
+    async runConvert() {
+      this.convertRunning = true;
+      this.currentStep = 4;
+      const fd = new FormData();
+      fd.append('key', this.sessionKey);
+      fd.append('fmt', this.exportCfg.fmt);
+      fd.append('include_metadata', this.exportCfg.include_metadata);
+      fd.append('include_id', this.exportCfg.include_id);
+      if (this.exportCfg.instruction) fd.append('instruction', this.exportCfg.instruction);
+      try {
+        const r = await fetch('/api/convert', { method: 'POST', body: fd });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+        const blob = await r.blob();
+        const cd = r.headers.get('Content-Disposition');
+        let fn = 'output.bin';
+        if (cd) { const m = cd.match(/filename=(.+)/); if (m) fn = m[1].replace(/"/g,''); }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fn;
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch(e) {
+        alert('Грешка при експорт: ' + e.message);
+      } finally {
+        this.convertRunning = false;
+      }
+    },
+
+    async runQuick() {
+      const files = Array.from(this.$refs.quickFile.files || []);
+      if (!files.length) { this.quickMsg = 'Изберете поне един файл.'; this.quickMsgType='error'; return; }
+      const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+      if (files.some(file => !file.name.toLowerCase().endsWith('.tmx'))) {
+        this.quickMsg = 'Всички избрани файлове трябва да са TMX.'; this.quickMsgType='error'; return;
+      }
+      if (files.length > 1 && !this.quickLarge) {
+        this.quickMsg = 'За обработка на множество файлове включете streaming режим.'; this.quickMsgType='error'; return;
+      }
+      if (this.quickLarge && totalBytes > 1024 * 1024 * 1024) {
+        this.quickMsg = 'Общият размер на файловете надвишава 1 GiB.'; this.quickMsgType='error'; return;
+      }
+      const largeFormats = ['jsonl','alpaca','sharegpt','chatml','openai','dpo','prompt_completion','reasoning'];
+      if (this.quickLarge && !largeFormats.includes(this.quickFmt)) {
+        this.quickMsg = 'Streaming режимът поддържа само JSONL и AI JSONL формати.'; this.quickMsgType='error'; return;
+      }
+      if (this.quickLarge && this.quickFuzzy) {
+        this.quickMsg = 'Изключете fuzzy дедупликацията за streaming режим.'; this.quickMsgType='error'; return;
+      }
+      this.quickRunning = true; this.quickMsg = 'Обработва се... ⏳'; this.quickMsgType='info';
+      const fd = new FormData();
+      if (this.quickLarge) files.forEach(file => fd.append('files', file));
+      else fd.append('file', files[0]);
+      fd.append('fmt', this.quickFmt);
+      fd.append('clean', this.quickClean);
+      fd.append('dedupe', this.quickDedupe);
+      fd.append('fuzzy', this.quickFuzzy);
+      try {
+        const r = await fetch(this.quickLarge ? '/api/large-pipeline' : '/api/pipeline', { method: 'POST', body: fd });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+        if (this.quickLarge) {
+          const result = await r.json();
+          const a = document.createElement('a');
+          a.href = result.download_url;
+          a.download = result.filename;
+          document.body.appendChild(a); a.click(); a.remove();
+          this.quickMsg = `Готово ✅ ${result.counts.parsed.toLocaleString()} TU обработени; ${result.counts.after_dedupe.toLocaleString()} изходни реда (${(result.output_bytes/1024/1024).toFixed(1)} MiB).`;
+          this.quickMsgType = 'info';
+          return;
+        }
+        const blob = await r.blob();
+        const cd = r.headers.get('Content-Disposition');
+        let fn = 'pipeline_output.zip';
+        if (cd) { const m = cd.match(/filename=(.+)/); if (m) fn = m[1].replace(/"/g,''); }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fn;
+        document.body.appendChild(a); a.click(); a.remove();
+        this.quickMsg = 'Готово ✅ Файлът беше свален автоматично.'; this.quickMsgType = 'info';
+      } catch(e) {
+        this.quickMsg = 'Грешка: ' + e.message; this.quickMsgType = 'error';
+      } finally {
+        this.quickRunning = false;
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>

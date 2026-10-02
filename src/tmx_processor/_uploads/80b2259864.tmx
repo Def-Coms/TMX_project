@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tmx version="1.4">
+  <header
+    creationtool="SampleTMXTool"
+    creationtoolversion="1.0"
+    segtype="sentence"
+    o-tmf="PlainText"
+    adminlang="EN"
+    srclang="EN"
+    datatype="PlainText">
+    <prop type="name">Примерен TMX файл за Machine Learning</prop>
+    <prop type="description">Съдържа различни типове текстове за демонстрация</prop>
+  </header>
+  <body>
+    <tu tuid="1">
+      <note>Общ текст - приветствие</note>
+      <tuv xml:lang="EN"><seg>Hello, how are you today?</seg></tuv>
+      <tuv xml:lang="BG"><seg>Здравей, как си днес?</seg></tuv>
+    </tu>
+
+    <tu tuid="2">
+      <tuv xml:lang="EN"><seg>Welcome to our platform for AI training data preparation.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Добре дошли в нашата платформа за подготовка на данни за AI обучение.</seg></tuv>
+    </tu>
+
+    <tu tuid="3">
+      <prop type="domain">технически</prop>
+      <tuv xml:lang="EN"><seg>The server responded with a 500 Internal Server Error.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Сървърът отговори с грешка 500 Internal Server Error.</seg></tuv>
+    </tu>
+
+    <tu tuid="4">
+      <tuv xml:lang="EN"><seg>Please <b>click</b> the button below to continue.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Моля, <b>натиснете</b> бутона по-долу, за да продължите.</seg></tuv>
+    </tu>
+
+    <tu tuid="5">
+      <tuv xml:lang="EN"><seg>Visit our website at https://example.com for more info.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Посетете нашия уебсайт на https://example.com за повече информация.</seg></tuv>
+    </tu>
+
+    <tu tuid="6">
+      <tuv xml:lang="EN"><seg>The price is $29.99 USD for {0} items.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Цената е $29.99 USD за {0} артикула.</seg></tuv>
+    </tu>
+
+    <tu tuid="7">
+      <tuv xml:lang="EN"><seg>Order received on 2024-03-15. Tracking number: TRK-84729103.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Поръчката е получена на 2024-03-15. Номер за проследяване: TRK-84729103.</seg></tuv>
+    </tu>
+
+    <tu tuid="8">
+      <tuv xml:lang="EN"><seg>Machine learning models require large amounts of high-quality parallel data.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Моделите за машинно обучение изискват големи количества висококачествени паралелни данни.</seg></tuv>
+    </tu>
+
+    <tu tuid="9">
+      <note>Дубликат на tuid=1 за тест на дедупликация</note>
+      <tuv xml:lang="EN"><seg>Hello, how are you today?</seg></tuv>
+      <tuv xml:lang="BG"><seg>Здравей, как си днес?</seg></tuv>
+    </tu>
+
+    <tu tuid="10">
+      <tuv xml:lang="EN"><seg>Our support team is available 24/7 at support@example.com</seg></tuv>
+      <tuv xml:lang="BG"><seg>Ншият екип за поддръжка е на разположение 24/7 на support@example.com</seg></tuv>
+    </tu>
+
+    <tu tuid="11">
+      <tuv xml:lang="EN"><seg>   Too   many   spaces   here...   </seg></tuv>
+      <tuv xml:lang="BG"><seg>   Твърде   много   интервали   тук...   </seg></tuv>
+    </tu>
+
+    <tu tuid="12">
+      <tuv xml:lang="EN"><seg>What is your name? My name is John Doe.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Как се казваш? Казвам се Иван Иванов.</seg></tuv>
+    </tu>
+
+    <tu tuid="13">
+      <tuv xml:lang="EN"><seg>A</seg></tuv>
+      <tuv xml:lang="BG"><seg>Ето един доста по-дълъг превод на един кратък израз, който е с много по-голяма дължина.</seg></tuv>
+    </tu>
+
+    <tu tuid="14">
+      <tuv xml:lang="EN"><seg>The quick brown fox jumps over the lazy dog near the riverbank at sunset.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Бързата кафява лисица прескача над мързеливото куче край речното корито при залез слънце.</seg></tuv>
+    </tu>
+
+    <tu tuid="15">
+      <tuv xml:lang="EN"><seg>Copyright © 2024 Company Name. All rights reserved.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Авторско право © 2024 Име на компания. Всички права запазени.</seg></tuv>
+    </tu>
+
+    <tu tuid="16">
+      <tuv xml:lang="EN"><seg>User ID: 12345, Role: Admin, Status: Active</seg></tuv>
+      <tuv xml:lang="BG"><seg>Потребителски ID: 12345, Роля: Админ, Статус: Активен</seg></tuv>
+    </tu>
+
+    <tu tuid="17">
+      <tuv xml:lang="EN"><seg>
+        This is a paragraph with
+        newlines and
+        multiple lines.
+      </seg></tuv>
+      <tuv xml:lang="BG"><seg>
+        Това е параграф с
+        нови редове и
+        множество редове.
+      </seg></tuv>
+    </tu>
+
+    <tu tuid="18">
+      <tuv xml:lang="EN"><seg>Error connecting to database: connection timed out after 30 seconds.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Грешка при свързване с базата данни: връзката изтече след 30 секунди.</seg></tuv>
+    </tu>
+
+    <tu tuid="19">
+      <tuv xml:lang="EN"><seg>Install with: pip install tmx-processor --upgrade</seg></tuv>
+      <tuv xml:lang="BG"><seg>Инсталирайте с: pip install tmx-processor --upgrade</seg></tuv>
+    </tu>
+
+    <tu tuid="20">
+      <tuv xml:lang="EN"><seg>Thank you for your purchase! We appreciate your business.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Благодарим Ви за покупката! Ценим Ви като клиент.</seg></tuv>
+    </tu>
+
+    <tu tuid="21">
+      <prop type="domain">медицински</prop>
+      <tuv xml:lang="EN"><seg>Take two tablets of 500 mg Paracetamol every 8 hours.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Вземете две таблетки по 500 mg Парацетамол на всеки 8 часа.</seg></tuv>
+    </tu>
+
+    <tu tuid="22">
+      <tuv xml:lang="EN"><seg>To reset your password, please follow the link: https://example.com/reset?token=abc123</seg></tuv>
+      <tuv xml:lang="BG"><seg>За да нулирате паролата си, моля последвайте линка: https://example.com/reset?token=abc123</seg></tuv>
+    </tu>
+
+    <tu tuid="23">
+      <tuv xml:lang="EN"><seg></seg></tuv>
+      <tuv xml:lang="BG"><seg>Тук има само превод, без оригинал.</seg></tuv>
+    </tu>
+
+    <tu tuid="24">
+      <tuv xml:lang="EN"><seg>File > Save As > PDF Document (.pdf)</seg></tuv>
+      <tuv xml:lang="BG"><seg>Файл > Запиши като > PDF документ (.pdf)</seg></tuv>
+    </tu>
+
+    <tu tuid="25">
+      <tuv xml:lang="EN"><seg>Artificial intelligence is transforming industries across the globe.</seg></tuv>
+      <tuv xml:lang="BG"><seg>Изкуственият интелект трансформира индустрии по целия свят.</seg></tuv>
+    </tu>
+
+  </body>
+</tmx>

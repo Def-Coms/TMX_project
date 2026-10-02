@@ -1,0 +1,15 @@
+lxml>=4.9.0
+regex>=2023.0.0
+langdetect>=1.0.9
+jsonlines>=4.0.0
+pandas>=2.0.0
+pyarrow>=12.0.0
+typer>=0.9.0
+rich>=13.0.0
+tqdm>=4.65.0
+datasketch>=1.5.0
+numpy>=1.24.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9
+streamlit>=1.30.0

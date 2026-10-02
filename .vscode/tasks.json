@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Verify big_test.tmx streaming export",
+			"type": "shell",
+			"command": "C:\\Users\\k.petrov\\Desktop\\TMX\\.venv\\Scripts\\python.exe",
+			"args": [
+				"examples/verify_large_stream.py",
+				"examples/big_test.tmx"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

@@ -1,0 +1,3 @@
+[console_scripts]
+tmx-proc = tmx_processor.cli:main
+tmx-web = tmx_processor.web_api:main
