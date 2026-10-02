@@ -20,6 +20,7 @@ class ValidationConfig:
     max_digit_mismatch_ratio: float = 1.0
     min_similar_words_ratio: float = 0.0
     max_alignment_ratio: float = 5.0
+    min_quality_score: float = 0.0  # Quality score threshold 0.0 - 100.0
 
 
 @dataclass
@@ -201,6 +202,41 @@ class DataValidator:
             )
         return ValidationResult(is_valid=True)
 
+    @staticmethod
+    def calculate_quality_score(unit: TranslationUnit) -> float:
+        """Calculate a comprehensive quality score (0.0 to 100.0) for a translation unit."""
+        if not unit.source_text or not unit.target_text:
+            return 0.0
+        score = 100.0
+        src = unit.source_text
+        tgt = unit.target_text
+
+        # Length ratio penalty
+        ratio = max(len(src), len(tgt)) / max(min(len(src), len(tgt)), 1)
+        if ratio > 3.0:
+            score -= min(30.0, (ratio - 3.0) * 10)
+
+        # Number mismatch penalty
+        src_nums = DIGIT_RE.findall(src)
+        tgt_nums = DIGIT_RE.findall(tgt)
+        if src_nums or tgt_nums:
+            mismatch = DataValidator._number_mismatch_ratio(src_nums, tgt_nums)
+            score -= mismatch * 40.0
+
+        # Untranslated same text penalty
+        if src.strip().lower() == tgt.strip().lower() and unit.source_lang != unit.target_lang:
+            score -= 50.0
+
+        # Script check penalty
+        tgt_lang = (unit.target_lang or "").lower()[:2]
+        if tgt_lang in ("bg", "ru", "mk", "uk", "sr"):
+            cyr = len(CYRILLIC_RE.findall(tgt))
+            lat = len(LATIN_RE.findall(tgt))
+            if lat > cyr and lat > 3:
+                score -= 40.0
+
+        return max(0.0, min(100.0, score))
+
     def validate(self, unit: TranslationUnit) -> ValidationResult:
         result = ValidationResult(is_valid=True)
         result = result.merge(self._check_nonempty(unit))
@@ -212,6 +248,14 @@ class DataValidator:
         result = result.merge(self._check_alignment_chars(unit))
         result = result.merge(self._check_similar_words(unit))
         result = result.merge(self._check_script_mismatch(unit))
+
+        if self.config.min_quality_score > 0.0:
+            q_score = self.calculate_quality_score(unit)
+            if q_score < self.config.min_quality_score:
+                result = result.merge(ValidationResult(
+                    is_valid=False,
+                    errors=[f"Quality score {q_score:.1f} below threshold {self.config.min_quality_score:.1f}"]
+                ))
         return result
 
     def filter_valid(

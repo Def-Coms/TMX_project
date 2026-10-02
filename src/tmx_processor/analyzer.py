@@ -84,6 +84,34 @@ class DatasetStats:
     def total_target_tokens(self) -> int:
         return self.target_word_sum
 
+    def estimate_llm_tokens(self) -> Dict[str, int]:
+        """Estimate token counts for popular LLM tokenizers (Llama-3, Qwen, GPT-4)."""
+        # Heuristic multipliers per word based on tokenizer benchmarks for EN/multilingual
+        total_words = self.source_word_sum + self.target_word_sum
+        return {
+            "llama3_estimated_tokens": int(total_words * 1.35),
+            "qwen_estimated_tokens": int(total_words * 1.25),
+            "gpt4_estimated_tokens": int(total_words * 1.30),
+            "mistral_estimated_tokens": int(total_words * 1.32),
+        }
+
+    def readiness_report(self) -> Dict[str, Union[str, bool, int, float, dict]]:
+        """Assess dataset readiness for LLM fine-tuning."""
+        total_tok = self.source_word_sum + self.target_word_sum
+        llm_tok = self.estimate_llm_tokens()["llama3_estimated_tokens"]
+
+        is_ready = self.valid_units >= 10 and llm_tok >= 100
+        status = "ГОТОВ ЗА FINE-TUNING" if is_ready else "НЕДОСТАТЪЧНО ДАННИ (ПРЕПОРЪЧИТЕЛНИ МИН. 1,000 TU)"
+
+        return {
+            "dataset_status": status,
+            "is_ready": is_ready,
+            "total_valid_units": self.valid_units,
+            "total_llm_tokens_est": llm_tok,
+            "recommended_epochs": 3 if self.valid_units < 10000 else 1,
+            "token_estimates": self.estimate_llm_tokens(),
+        }
+
     def to_dict(self) -> Dict:
         lp = {}
         for (src, tgt), cnt in self.language_pairs.items():
@@ -96,6 +124,7 @@ class DatasetStats:
             "language_pairs": lp,
             "source_languages": dict(self.source_languages),
             "target_languages": dict(self.target_languages),
+            "readiness": self.readiness_report(),
             "source": {
                 "avg_chars": self.avg_source_length,
                 "avg_words": self.avg_source_words,
@@ -192,3 +221,27 @@ class DataAnalyzer:
             else:
                 seen.add(key)
         return stats
+
+    def extract_terminology(
+        self, units: Iterable[TranslationUnit], min_freq: int = 2, max_terms: int = 50
+    ) -> List[Dict[str, Union[str, int]]]:
+        """Extract frequent domain terms / glossary pairs from parallel segments."""
+        word_token_re = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
+        pairs_counter: Counter = Counter()
+
+        for unit in units:
+            if not unit.source_text or not unit.target_text:
+                continue
+            src_words = set(word_token_re.findall(unit.source_text.lower()))
+            tgt_words = set(word_token_re.findall(unit.target_text.lower()))
+            for sw in src_words:
+                for tw in tgt_words:
+                    pairs_counter[(sw, tw)] += 1
+
+        top_terms = []
+        for (sw, tw), count in pairs_counter.most_common(max_terms * 3):
+            if count >= min_freq:
+                top_terms.append({"source_term": sw, "target_term": tw, "frequency": count})
+            if len(top_terms) >= max_terms:
+                break
+        return top_terms
