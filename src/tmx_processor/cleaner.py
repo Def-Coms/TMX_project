@@ -29,6 +29,8 @@ class CleanConfig:
     language_pairs: Optional[List[str]] = None  # e.g., ["EN-BG", "BG-EN"]
     preserve_placeholders: bool = False  # Keep {0}, {1} etc. placeholders
     remove_untranslated: bool = True  # Remove segments where text is identically copied without translation
+    anonymize_pii: bool = False  # Automatically mask PII (phones, IBANs, credit cards, emails)
+    pii_mask: str = "[REDACTED]"
 
 
 HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -38,6 +40,15 @@ URL_RE = re.compile(
 )
 EMAIL_RE = re.compile(
     r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+)
+PHONE_RE = re.compile(
+    r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}"
+)
+IBAN_RE = re.compile(
+    r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b", re.IGNORECASE
+)
+CREDIT_CARD_RE = re.compile(
+    r"\b(?:\d[ -]*?){13,16}\b"
 )
 PLACEHOLDER_RE = re.compile(
     r"\{[^{}]+\}|\[[^\]]+\]|<[^>]+>|%(?:\d+\$)?[A-Za-z]|\$\{[^}]+\}"
@@ -109,6 +120,13 @@ class DataCleaner:
             result = PUNCT_SPACE_RE.sub(
                 lambda m: (m.group(1) or m.group(2)) + " ", result
             )
+
+        if self.config.anonymize_pii:
+            mask = self.config.pii_mask
+            result = EMAIL_RE.sub(mask, result)
+            result = IBAN_RE.sub(mask, result)
+            result = CREDIT_CARD_RE.sub(mask, result)
+            result = PHONE_RE.sub(mask, result)
 
         if self.config.normalize_spaces:
             result = MULTISPACE_RE.sub(" ", result)

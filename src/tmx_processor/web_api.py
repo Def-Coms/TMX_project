@@ -630,6 +630,14 @@ def api_stats(key: str):
     return JSONResponse(res)
 
 
+@app.get("/api/search/{key}")
+def api_search(key: str, query: str = "", limit: int = 50):
+    units = _get_session_units(key, "Няма данни.")
+    analyzer = DataAnalyzer()
+    results = analyzer.search_concordance(units, query=query, max_results=limit)
+    return JSONResponse({"key": key, "query": query, "count": len(results), "results": results})
+
+
 @app.get("/api/preview/{key}")
 def api_preview(key: str, start: int = 0, limit: int = 50):
     units = _get_session_units(key, "Няма данни.")

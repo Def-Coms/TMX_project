@@ -245,3 +245,26 @@ class DataAnalyzer:
             if len(top_terms) >= max_terms:
                 break
         return top_terms
+
+    def search_concordance(
+        self, units: Iterable[TranslationUnit], query: str, max_results: int = 50
+    ) -> List[Dict[str, str]]:
+        """Search parallel units for exact/regex query in source or target text (Concordance search)."""
+        if not query:
+            return []
+        pattern = re.compile(re.escape(query), re.IGNORECASE)
+        results = []
+        for unit in units:
+            if not unit.source_text or not unit.target_text:
+                continue
+            if pattern.search(unit.source_text) or pattern.search(unit.target_text):
+                results.append({
+                    "id": unit.tu_id or "",
+                    "source_lang": unit.source_lang or "",
+                    "target_lang": unit.target_lang or "",
+                    "source_text": unit.source_text,
+                    "target_text": unit.target_text,
+                })
+            if len(results) >= max_results:
+                break
+        return results
