@@ -647,6 +647,7 @@ def api_convert(
     include_metadata: bool = Form(False),
     include_id: bool = Form(False),
     instruction: Optional[str] = Form(None),
+    language_pairs: Optional[str] = Form(None), # Comma-separated pairs e.g. "EN-BG,BG-EN"
 ):
     units = _get_session_units(key, "Няма данни.")
     try:
@@ -654,10 +655,12 @@ def api_convert(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Невалиден формат: {fmt}")
 
+    lang_pairs_list = [p.strip() for p in language_pairs.split(",")] if language_pairs else None
     opts = ConvertOptions(
         include_metadata=include_metadata,
         include_id=include_id,
         instruction_template=instruction,
+        language_pairs=lang_pairs_list,
     )
     converter = DataConverter(options=opts)
 
