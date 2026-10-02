@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, Iterator, List, Optional
 
 from .parser import TMXParser, TranslationUnit
@@ -61,7 +62,8 @@ class BatchProcessor:
         
         # Convert
         opts = convert_options or ConvertOptions()
-        self.converter.convert(units, output_path, fmt, instruction_tmpl=opts.instruction_template)
+        converter = DataConverter(options=opts)
+        converter.convert(units, output_path, fmt, instruction_tmpl=opts.instruction_template)
         stats["output_units"] = len(units)
         
         return stats
@@ -104,17 +106,36 @@ class BatchProcessor:
             
             output_path = output_dir / f"merged.{fmt.value}"
             opts = convert_options or ConvertOptions()
-            self.converter.convert(all_units, output_path, fmt, instruction_tmpl=opts.instruction_template)
+            converter = DataConverter(options=opts)
+            converter.convert(all_units, output_path, fmt, instruction_tmpl=opts.instruction_template)
             stats["output_units"] = len(all_units)
             
             results["merged"] = stats
         else:
-            # Process each file separately
-            for tmx_path in tmx_files:
-                output_name = tmx_path.stem + f".{fmt.value}"
-                output_path = output_dir / output_name
-                stats = self.process_file(tmx_path, output_path, fmt, convert_options)
-                results[str(tmx_path)] = stats
+            # Process each file separately using ProcessPoolExecutor for multi-core parallelism
+            if len(tmx_files) > 1:
+                with ProcessPoolExecutor() as executor:
+                    future_to_path = {}
+                    for tmx_path in tmx_files:
+                        output_name = tmx_path.stem + f".{fmt.value}"
+                        output_path = output_dir / output_name
+                        future = executor.submit(
+                            self.process_file,
+                            tmx_path,
+                            output_path,
+                            fmt,
+                            convert_options,
+                        )
+                        future_to_path[future] = tmx_path
+                    for future in as_completed(future_to_path):
+                        tmx_path = future_to_path[future]
+                        results[str(tmx_path)] = future.result()
+            else:
+                for tmx_path in tmx_files:
+                    output_name = tmx_path.stem + f".{fmt.value}"
+                    output_path = output_dir / output_name
+                    stats = self.process_file(tmx_path, output_path, fmt, convert_options)
+                    results[str(tmx_path)] = stats
         
         return results
     
@@ -150,7 +171,8 @@ class BatchProcessor:
             stats["after_dedupe"] = len(all_units)
         
         opts = convert_options or ConvertOptions()
-        self.converter.convert(all_units, output_path, fmt, instruction_tmpl=opts.instruction_template)
+        converter = DataConverter(options=opts)
+        converter.convert(all_units, output_path, fmt, instruction_tmpl=opts.instruction_template)
         stats["output_units"] = len(all_units)
         
         return stats
