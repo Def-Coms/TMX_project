@@ -238,6 +238,10 @@ with tab_export:
         ec1, ec2 = st.columns(2)
         inc_meta = ec1.checkbox("Включи metadata", False)
         inc_id = ec2.checkbox("Включи TU ID", False)
+
+        avail_pairs_export = sorted(list({f"{unit.source_lang}-{unit.target_lang}" for unit in u if unit.source_lang and unit.target_lang}))
+        selected_pairs_export = st.multiselect("Експортирай само определени езикови двойки (остави празно за всички)", options=avail_pairs_export, default=[])
+
         instr = ""
         if fmt in (OutputFormat.ALPACA, OutputFormat.SHAREGPT, OutputFormat.CHATML, OutputFormat.OPENAI, OutputFormat.DPO, OutputFormat.PROMPT_COMPLETION, OutputFormat.REASONING):
             instr = st.text_input("Персонализирана инструкция (по желание)",
@@ -246,7 +250,8 @@ with tab_export:
         if st.button("💾 Генерирай и свали"):
             opts = ConvertOptions(
                 include_metadata=inc_meta, include_id=inc_id,
-                instruction_template=instr or None
+                instruction_template=instr or None,
+                language_pairs=selected_pairs_export if selected_pairs_export else None,
             )
             converter = DataConverter(options=opts)
             with tempfile.TemporaryDirectory() as td:

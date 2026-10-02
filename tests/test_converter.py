@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from tmx_processor.converter import DataConverter, OutputFormat, _split_sizes
+from tmx_processor.converter import ConvertOptions, DataConverter, OutputFormat, _split_sizes
 from tmx_processor.parser import TranslationUnit
 
 
@@ -164,3 +164,21 @@ def test_dpo_format_with_custom_instruction(tmp_path):
     assert "Custom instruction" in record["prompt"]
     assert "EN" in record["prompt"]
     assert "BG" in record["prompt"]
+
+
+def test_convert_filter_language_pairs(tmp_path):
+    units = [
+        TranslationUnit(source_lang="EN", target_lang="BG", source_text="Hello", target_text="Здравей"),
+        TranslationUnit(source_lang="EN", target_lang="FR", source_text="Hello", target_text="Bonjour"),
+        TranslationUnit(source_lang="DE", target_lang="BG", source_text="Hallo", target_text="Здравей"),
+    ]
+    output = tmp_path / "filtered_en_bg.jsonl"
+
+    opts = ConvertOptions(language_pairs=["EN-BG"])
+    converter = DataConverter(options=opts)
+    converter.convert(units, output, OutputFormat.JSONL)
+
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["source_lang"] == "EN"
+    assert records[0]["target_lang"] == "BG"

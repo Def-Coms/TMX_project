@@ -147,6 +147,7 @@ class ConvertOptions:
     input_template: Optional[str] = None
     output_template: Optional[str] = None
     bidirectional: bool = False  # Export both EN→BG and BG→EN
+    language_pairs: Optional[List[str]] = None  # Filter specific pairs on export e.g. ["EN-BG"]
     rejected_mode: str = "truncation"  # truncation, scramble, noise, copy_source, empty, repetition
     rejected_ratio: float = 0.5  # For truncation mode
     rejected_file: Optional[Path] = None  # For external rejected data
@@ -354,7 +355,18 @@ class DataConverter:
     def convert_iter(
         self, units: Iterable[TranslationUnit], fmt: OutputFormat
     ) -> Iterator[dict]:
+        allowed_pairs = None
+        if self.options.language_pairs:
+            allowed_pairs = {p.upper() for p in self.options.language_pairs}
+
         for unit in units:
+            if allowed_pairs:
+                src_u = (unit.source_lang or "").upper()
+                tgt_u = (unit.target_lang or "").upper()
+                pair_str = f"{src_u}-{tgt_u}"
+                if pair_str not in allowed_pairs:
+                    continue
+
             yield self._format_record(unit, fmt)
             if self.options.bidirectional:
                 reversed_unit = self._reverse_unit(unit)
