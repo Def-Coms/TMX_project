@@ -352,6 +352,49 @@ class DataConverter:
             notes=list(unit.notes),
         )
 
+    def pack_context_windows(
+        self, units: Iterable[TranslationUnit], max_chars: int = 2048
+    ) -> Iterator[TranslationUnit]:
+        """Combine consecutive short translation units into larger context blocks for LLM training."""
+        current_src_parts: List[str] = []
+        current_tgt_parts: List[str] = []
+        current_len = 0
+        current_tu_id = None
+        src_lang = None
+        tgt_lang = None
+
+        for unit in units:
+            unit_len = len(unit.source_text) + len(unit.target_text)
+            if current_len + unit_len > max_chars and current_src_parts:
+                yield TranslationUnit(
+                    tu_id=current_tu_id,
+                    source_lang=src_lang,
+                    target_lang=tgt_lang,
+                    source_text="\n".join(current_src_parts),
+                    target_text="\n".join(current_tgt_parts),
+                )
+                current_src_parts = []
+                current_tgt_parts = []
+                current_len = 0
+
+            if not current_src_parts:
+                current_tu_id = unit.tu_id
+                src_lang = unit.source_lang
+                tgt_lang = unit.target_lang
+
+            current_src_parts.append(unit.source_text)
+            current_tgt_parts.append(unit.target_text)
+            current_len += unit_len
+
+        if current_src_parts:
+            yield TranslationUnit(
+                tu_id=current_tu_id,
+                source_lang=src_lang,
+                target_lang=tgt_lang,
+                source_text="\n".join(current_src_parts),
+                target_text="\n".join(current_tgt_parts),
+            )
+
     def convert_iter(
         self, units: Iterable[TranslationUnit], fmt: OutputFormat
     ) -> Iterator[dict]:
