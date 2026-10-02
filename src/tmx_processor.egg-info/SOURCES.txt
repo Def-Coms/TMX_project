@@ -3,6 +3,7 @@ README.md
 pyproject.toml
 src/tmx_processor/__init__.py
 src/tmx_processor/analyzer.py
+src/tmx_processor/batch.py
 src/tmx_processor/cleaner.py
 src/tmx_processor/cli.py
 src/tmx_processor/converter.py

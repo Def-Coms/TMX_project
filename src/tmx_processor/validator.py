@@ -39,6 +39,8 @@ class ValidationResult:
 DIGIT_RE = re.compile(r"\d+")
 ALPHA_RE = re.compile(r"[^\W\d_]", re.UNICODE)
 PLACEHOLDER_COUNT_RE = re.compile(r"\{(\d+)\}")
+CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
+LATIN_RE = re.compile(r"[a-zA-Z]")
 
 
 class DataValidator:
@@ -169,6 +171,19 @@ class DataValidator:
                 )
         return ValidationResult(is_valid=True, warnings=warnings)
 
+    def _check_script_mismatch(self, unit: TranslationUnit) -> ValidationResult:
+        warnings: List[str] = []
+        tgt_lang = (unit.target_lang or "").lower()[:2]
+        tgt_text = unit.target_text or ""
+        if tgt_lang in ("bg", "ru", "mk", "uk", "sr") and tgt_text:
+            cyr_count = len(CYRILLIC_RE.findall(tgt_text))
+            lat_count = len(LATIN_RE.findall(tgt_text))
+            if lat_count > cyr_count and lat_count > 3:
+                warnings.append(
+                    f"Преводът за кирилски език '{tgt_lang}' съдържа предимно латиница: cyr={cyr_count}, lat={lat_count}"
+                )
+        return ValidationResult(is_valid=True, warnings=warnings)
+
     def _check_similar_words(self, unit: TranslationUnit) -> ValidationResult:
         if self.config.min_similar_words_ratio <= 0:
             return ValidationResult(is_valid=True)
@@ -196,6 +211,7 @@ class DataValidator:
         result = result.merge(self._check_placeholders(unit))
         result = result.merge(self._check_alignment_chars(unit))
         result = result.merge(self._check_similar_words(unit))
+        result = result.merge(self._check_script_mismatch(unit))
         return result
 
     def filter_valid(
